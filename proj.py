@@ -1,5 +1,5 @@
 # Authors: Collier Crisanti, Aron Harder
-# CS6501-003 Sprinig 2019
+# CS6501-003 Spring 2019
 
 from z3 import *
 import re
@@ -53,7 +53,6 @@ for line in f:
         #if chk == sat:
         #    print(s.model())
         s.reset()
-        #break #Just doing first test case for now...
     else:
         var = line[line.index("{")+1:line.index("}")]
         if line[0] == "W":
