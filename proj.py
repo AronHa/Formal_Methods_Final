@@ -8,6 +8,12 @@ import datetime
 
 def abs2(x):
     return If(x >= 0, x, -x)
+def adj_obs(x,o):
+    nearby = 1
+    output = []
+    for i in range(num_o):
+        output.append(If( abs2(x[0]-o[i][0])+abs2(x[1]-o[i][1])<=nearby, 1, 0 ))
+    return output
 
 #NOTE: This function a major flaw. Because the array checks itself, it doesn't
 #  actually check full coverage, it only checks if the drone is connected to
@@ -17,32 +23,37 @@ def check_conn(e,num_d,max_t):
     for t in range(max_t):
         check[t][0] = True
         for d_id1 in range(1,num_d):
+            """
             a = []
             for d_id2 in range(num_d):
                 if d_id2 == d_id1:
                     continue
                 a.append( And(e[t][d_id1][d_id2],check[t][d_id2]) )
             check[t][d_id1] = Or( a )
+            """
+            #Simplified version of broken code
+            check[t][d_id1] = e[t][d_id1][0]
     for t in range(max_t):
         check[t] = And(check[t])
     return And(check)
 
-def check_anet(d,num_d,max_t):
+def check_anet(d,o,num_d,max_t):
     alpha = 10
     Edges = [ [[Bool('e_%s_%s_%s' % (t,i,j)) for i in range(num_d)] for j in range(num_d)] for t in range(max_t) ]
     for t in range(max_t):
         for d_id1 in range(num_d):
             for d_id2 in range(num_d):
-                Edges[t][d_id1][d_id2] = dist(d,d_id1,d_id2,t) <= alpha**2
+                Edges[t][d_id1][d_id2] = dist(d,d_id1,d_id2,o,t) <= alpha**2
     return check_conn(Edges,num_d,max_t)
 
-def dist(d,d_id1,d_id2,t):
+def dist(d,d_id1,d_id2,o,t):
+    gamma = 1
     #NOTE: dist DOES NOT take the sqrt because z3 can't solve for sqrt.
     #  As a workaround, square the other side instead
-    return (d[d_id1][t][0]-d[d_id2][t][0])**2+(d[d_id1][t][1]-d[d_id2][t][1])**2 
+    return (d[d_id1][t][0]-d[d_id2][t][0])**2+(d[d_id1][t][1]-d[d_id2][t][1])**2+sum(adj_obs(d[d_id1][t],o))*gamma+sum(adj_obs(d[d_id2][t],o))*gamma
 
 s = Solver()
-output_model = False
+output_model = True
 
 f = open("input.txt","r")
 for line in f:
@@ -74,7 +85,7 @@ for line in f:
         start_pos = [ And(D[d_id][0][0] == start_x,D[d_id][0][1] == start_y) for d_id in range(num_d) ]
 
         # The network graph is connected
-        network = check_anet(D,num_d,max_t)
+        network = check_anet(D,o,num_d,max_t)
 
         s.add(visit_waypoints)
         s.add(start_end_pos)
