@@ -3,15 +3,52 @@
 
 from z3 import *
 import re
+from graph2 import Graph
+import datetime
 
 def abs2(x):
     return If(x >= 0, x, -x)
 
+#NOTE: This function a major flaw. Because the array checks itself, it doesn't
+#  actually check full coverage, it only checks if the drone is connected to
+#  drone 0.
+def check_conn(e,num_d,max_t):
+    check = [[False for d in range(num_d)] for t in range(max_t) ]
+    for t in range(max_t):
+        check[t][0] = True
+        for d_id1 in range(1,num_d):
+            a = []
+            for d_id2 in range(num_d):
+                if d_id2 == d_id1:
+                    continue
+                a.append( And(e[t][d_id1][d_id2],check[t][d_id2]) )
+            check[t][d_id1] = Or( a )
+    for t in range(max_t):
+        check[t] = And(check[t])
+    return And(check)
+
+def check_anet(d,num_d,max_t):
+    alpha = 10
+    Edges = [ [[Bool('e_%s_%s_%s' % (t,i,j)) for i in range(num_d)] for j in range(num_d)] for t in range(max_t) ]
+    for t in range(max_t):
+        for d_id1 in range(num_d):
+            for d_id2 in range(num_d):
+                Edges[t][d_id1][d_id2] = dist(d,d_id1,d_id2,t) <= alpha**2
+    return check_conn(Edges,num_d,max_t)
+
+def dist(d,d_id1,d_id2,t):
+    #NOTE: dist DOES NOT take the sqrt because z3 can't solve for sqrt.
+    #  As a workaround, square the other side instead
+    return (d[d_id1][t][0]-d[d_id2][t][0])**2+(d[d_id1][t][1]-d[d_id2][t][1])**2 
+
 s = Solver()
+output_model = False
 
 f = open("input.txt","r")
 for line in f:
     if line == "\n":
+        time1 = datetime.datetime.now()
+        print(time1)
         #Run test
         max_x = 9
         max_y = 9
@@ -36,9 +73,8 @@ for line in f:
         # Drones must start (but not end) at given position
         start_pos = [ And(D[d_id][0][0] == start_x,D[d_id][0][1] == start_y) for d_id in range(num_d) ]
 
-        # Not sure how to do these two
-        # Every edge in the network graph is less than alpha
         # The network graph is connected
+        network = check_anet(D,num_d,max_t)
 
         s.add(visit_waypoints)
         s.add(start_end_pos)
@@ -47,11 +83,20 @@ for line in f:
         s.add(drone_avoid)
         s.add(obstacle_avoid)
         s.add(env_remain)
+        s.add(network)
 
         chk = s.check()
         print(chk)
-        #if chk == sat:
-        #    print(s.model())
+        time2 = datetime.datetime.now()
+        print(time2)
+        print(time2-time1)
+        if output_model and chk == sat:
+            out = s.model()
+            for d in range(num_d):
+                print("Drone "+str(d))
+                for t in range(max_t):
+                    print(str(out[D[d][t][0]])+","+str(out[D[d][t][1]]))
+                print()
         s.reset()
     else:
         var = line[line.index("{")+1:line.index("}")]
@@ -65,12 +110,13 @@ for line in f:
             start_y = int(init_coords[0][1])
             #TODO: Need a number of drones
             num_d = 2
-            max_t = 40
             D = [ [[Int("x%s_%s" % (i,t)), Int("y%s_%s" % (i,t))] for t in range(max_t)] for i in range(num_d)]
         elif line[0] == "O":
             o = re.findall('\((\d+),(\d+)\)',var)
             o = [(int(a[0]),int(a[1])) for a in o]
             num_o = len(o)
+        elif line[0] == "t":
+            max_t = int(re.findall('\d+',var)[0])
         else:
             print("Unknown token "+line[0]+" detected")
 
