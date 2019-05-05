@@ -15,30 +15,18 @@ def adj_obs(x,o):
         output.append(If( abs2(x[0]-o[i][0])+abs2(x[1]-o[i][1])<=nearby, 1, 0 ))
     return output
 
-#NOTE: This function a major flaw. Because the array checks itself, it doesn't
-#  actually check full coverage, it only checks if the drone is connected to
-#  drone 0.
 def check_conn(e,num_d,max_t):
     check = [[False for d in range(num_d)] for t in range(max_t) ]
     for t in range(max_t):
         check[t][0] = True
         for d_id1 in range(1,num_d):
-            """
-            a = []
-            for d_id2 in range(num_d):
-                if d_id2 == d_id1:
-                    continue
-                a.append( And(e[t][d_id1][d_id2],check[t][d_id2]) )
-            check[t][d_id1] = Or( a )
-            """
-            #Simplified version of broken code
             check[t][d_id1] = e[t][d_id1][0]
     for t in range(max_t):
         check[t] = And(check[t])
     return And(check)
 
 def check_anet(d,o,num_d,max_t):
-    alpha = 10
+    alpha = 20
     Edges = [ [[Bool('e_%s_%s_%s' % (t,i,j)) for i in range(num_d)] for j in range(num_d)] for t in range(max_t) ]
     for t in range(max_t):
         for d_id1 in range(num_d):
@@ -47,7 +35,7 @@ def check_anet(d,o,num_d,max_t):
     return check_conn(Edges,num_d,max_t)
 
 def dist(d,d_id1,d_id2,o,t):
-    gamma = 1
+    gamma = 10
     #NOTE: dist DOES NOT take the sqrt because z3 can't solve for sqrt.
     #  As a workaround, square the other side instead
     return (d[d_id1][t][0]-d[d_id2][t][0])**2+(d[d_id1][t][1]-d[d_id2][t][1])**2+sum(adj_obs(d[d_id1][t],o))*gamma+sum(adj_obs(d[d_id2][t],o))*gamma
@@ -55,7 +43,7 @@ def dist(d,d_id1,d_id2,o,t):
 s = Solver()
 output_model = True
 
-f = open("input.txt","r")
+f = open("_input.txt","r")
 for line in f:
     if line == "\n":
         time1 = datetime.datetime.now()
@@ -119,7 +107,6 @@ for line in f:
             init_coords = re.findall('\((\d+),(\d+)\)',var)
             start_x = int(init_coords[0][0])
             start_y = int(init_coords[0][1])
-            #TODO: Need a number of drones
             num_d = 2
             D = [ [[Int("x%s_%s" % (i,t)), Int("y%s_%s" % (i,t))] for t in range(max_t)] for i in range(num_d)]
         elif line[0] == "O":
